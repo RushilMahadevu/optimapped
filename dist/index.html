@@ -1,0 +1,32 @@
+-optimapped/optimapped/dist/index.html
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Redirecting...</title>
+    <script>
+      // Attempt to fetch firebase.json (useful if you need to inspect its content)
+      fetch('/firebase.json')
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error('Failed to load firebase.json');
+          }
+          return response.json();
+        })
+        .then((config) => {
+          console.log('Firebase config:', config);
+          // Redirect to the root path where Next.js will serve the page.tsx component
+          window.location.href = '/';
+        })
+        .catch((error) => {
+          console.error('Error fetching firebase.json:', error);
+          // On error, still redirect to the root path
+          window.location.href = '/';
+        });
+    </script>
+  </head>
+  <body>
+    <p>Redirecting to the main page...</p>
+  </body>
+</html>
