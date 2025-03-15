@@ -1,4 +1,3 @@
--optimapped/optimapped/dist/index.html
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -16,13 +15,13 @@
         })
         .then((config) => {
           console.log('Firebase config:', config);
-          // Redirect to the root path where Next.js will serve the page.tsx component
-          window.location.href = '/';
+          // Redirect to a specific page instead of root to avoid the loop
+          window.location.href = '/page';
         })
         .catch((error) => {
           console.error('Error fetching firebase.json:', error);
-          // On error, still redirect to the root path
-          window.location.href = '/';
+          // On error, also redirect to a specific page
+          window.location.href = '/page';
         });
     </script>
   </head>

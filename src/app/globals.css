@@ -10,14 +10,16 @@
   --off-white: #f7f7f7;
   --white: #ffffff;
   
-  /* Functional assignments */
-  --background: var(--white);
-  --foreground: var(--black);
-  --accent: var(--mid-gray);
-  --surface: var(--off-white);
-  --surface-hover: var(--light-gray);
-  --border: var(--light-gray);
-  --muted: var(--mid-gray);
+  /* Functional assignments - single color scheme */
+  --background: var(--off-black);
+  --foreground: var(--off-white);
+  --accent: var(--light-gray);
+  --surface: var(--dark-gray);
+  --surface-hover: var(--mid-gray);
+  --border: var(--mid-gray);
+  --muted: var(--light-gray);
+  --primary: #4a78f0;
+  --primary-foreground: var(--white);
 }
 
 @theme inline {
@@ -27,17 +29,7 @@
   --font-mono: 'SF Mono', SFMono-Regular, ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: var(--black);
-    --foreground: var(--white);
-    --accent: var(--light-gray);
-    --surface: var(--off-black);
-    --surface-hover: var(--dark-gray);
-    --border: var(--dark-gray);
-    --muted: var(--mid-gray);
-  }
-}
+/* Remove the media query for dark mode since we're using a single theme */
 
 body {
   background: var(--background);

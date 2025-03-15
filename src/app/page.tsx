@@ -1,72 +1,96 @@
+"use client";
+
 import Link from "next/link";
+import { motion } from "framer-motion";
 
 export default function Home() {
   return (
-    <div className="flex flex-col min-h-screen justify-between p-6 sm:p-8">
+    <div className="flex flex-col min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header className="flex justify-between items-center pt-4">
+      <motion.header 
+        className="flex justify-between items-center p-6 sm:p-10"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-black dark:bg-white rounded-sm"></div>
-          <span className="font-medium text-base tracking-tight">optimapped</span>
+          <motion.div 
+            className="w-6 h-6 bg-accent rounded-sm"
+            whileHover={{ scale: 1.1, rotate: 5 }}
+            transition={{ type: "spring", stiffness: 400, damping: 10 }}
+          ></motion.div>
+          <span className="font-medium text-base tracking-tight">optimapped.</span>
         </div>
-        <nav className="hidden sm:flex gap-6">
-          <a href="#features" className="text-sm hover:text-accent transition-colors">Features</a>
-          <a href="#about" className="text-sm hover:text-accent transition-colors">About</a>
-          <a href="#contact" className="text-sm hover:text-accent transition-colors">Contact</a>
+        <nav className="hidden sm:flex gap-8">
+          <motion.a 
+            href="#features" 
+            className="text-sm text-muted hover:text-accent transition-colors"
+            whileHover={{ scale: 1.05 }}
+          >
+            Features
+          </motion.a>
+          <motion.a 
+            href="#about" 
+            className="text-sm text-muted hover:text-accent transition-colors"
+            whileHover={{ scale: 1.05 }}
+          >
+            About
+          </motion.a>
+          <motion.a 
+            href="#contact" 
+            className="text-sm text-muted hover:text-accent transition-colors"
+            whileHover={{ scale: 1.05 }}
+          >
+            Contact
+          </motion.a>
         </nav>
-      </header>
+      </motion.header>
 
       {/* Main content */}
-      <main className="flex flex-col items-center justify-center gap-8 py-12 flex-grow">
-        <div className="text-center max-w-md">
-          <h1 className="app-heading text-3xl sm:text-4xl mb-3">
-            Plan your journey
+      <main className="flex flex-col items-center justify-center flex-grow px-6 sm:px-10">
+        <motion.div 
+          className="text-center max-w-md"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+        >
+          <h1 className="text-3xl sm:text-4xl mb-3 text-foreground font-bold">
+            Focus better.
           </h1>
-          <p className="text-sm text-muted mb-8">
-            The minimalist planning tool for maximum productivity
+          <p className="text-sm text-muted mb-12">
+            The scientific planning tool for maximum productivity
           </p>
-        </div>
+        </motion.div>
 
-        {/* Login form */}
-        <div className="w-full max-w-xs">
-          <form className="flex flex-col gap-4">
-            <div>
-              <input 
-                type="email" 
-                placeholder="Email" 
-                className="w-full px-4 py-2 bg-surface border border-border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-                required
-              />
-            </div>
-            <div>
-              <input 
-                type="password" 
-                placeholder="Password" 
-                className="w-full px-4 py-2 bg-surface border border-border rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-accent"
-                required
-              />
-            </div>
-            <button 
-              type="submit"
-              className="w-full bg-black text-white dark:bg-white dark:text-black py-2 rounded-md text-sm font-medium hover:bg-dark-gray dark:hover:bg-light-gray transition-colors"
-            >
-              Sign In
-            </button>
-          </form>
-          <div className="text-center mt-4">
-            <Link href="/signup" className="text-xs text-muted hover:underline">
-              Don't have an account? Sign up
-            </Link>
-          </div>
-        </div>
+        {/* Get Started Button */}
+        <motion.div
+          className="w-full max-w-sm"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+        >
+          <motion.button
+            className="w-full bg-white text-gray-800 py-3 rounded-lg text-sm font-medium hover:bg-gray-100 transition-colors shadow-md shadow-white/20 cursor-pointer border border-gray-100"
+            whileHover={{ scale: 1.03, boxShadow: "0 10px 25px -5px rgba(255, 255, 255, 0.3)" }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 400, damping: 10 }}
+          >
+            Get Started
+          </motion.button>
+        </motion.div>
       </main>
 
       {/* Footer */}
-      <footer className="flex justify-center py-6">
-        <p className="text-xs text-muted">
+      <motion.footer 
+        className="flex justify-center p-6 sm:p-10"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5, delay: 0.9 }}
+      >
+        <p className="text-sm text-muted opacity-70">
           © {new Date().getFullYear()} Optimapped. All rights reserved.
         </p>
-      </footer>
+      </motion.footer>
     </div>
   );
 }
