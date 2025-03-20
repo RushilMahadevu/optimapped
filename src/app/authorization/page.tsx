@@ -5,6 +5,7 @@ import { useState } from "react";
 import { auth } from "../firebase";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
@@ -60,6 +61,17 @@ export default function AuthPage() {
             ></motion.div>
             <span className="font-medium text-base tracking-tight">optimapped.</span>
           </div>
+        </Link>
+        
+        <Link href="/" passHref>
+          <motion.button
+            className="flex items-center gap-1 text-sm text-foreground/80 hover:text-foreground transition-colors cursor-pointer"
+            whileHover={{ x: -2 }}
+            whileTap={{ scale: 0.97 }}
+          >
+            <ArrowLeft size={16} />
+            <span>Back to Home</span>
+          </motion.button>
         </Link>
       </motion.header>
 

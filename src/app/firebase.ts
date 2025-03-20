@@ -20,7 +20,12 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firebase services
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-// Initialize Analytics and check if it's in browser environment
-export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
+// Better analytics initialization pattern
+export const getAnalyticsInstance = () => {
+  if (typeof window !== 'undefined') {
+    return getAnalytics(app);
+  }
+  return null;
+};
 
 export default app;
