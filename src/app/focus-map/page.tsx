@@ -11,12 +11,14 @@ import {
   Plus, 
   Minus, 
   AlertCircle,
-  Brain,
-  Clock,
-  Check
+  Sparkles, // Add this for the AI insights button
+  Loader2, // Add this for loading state
 } from 'lucide-react';
 import { auth, db } from '../firebase';
 import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { User } from 'firebase/auth'; // Add this import
+import { getGeminiResponse, GeminiResponse } from '../utils/geminiApi';
+import { marked } from 'marked';
 
 // Types for focus map nodes
 interface FocusNode {
@@ -63,21 +65,9 @@ const categoryColors = {
   cognitive: '#8b5cf6', // violet
 };
 
-// Category icons for visual distinction
-const CategoryIcon = ({ category }: { category: string }) => {
-  switch (category) {
-    case 'attention':
-      return <Brain size={16} />;
-    case 'habits':
-      return <Clock size={16} />;
-    default:
-      return <Brain size={16} />;
-  }
-};
-
 const FocusMapPage = () => {
   const router = useRouter();
-  const [user, setUser] = useState<unknown>(null);
+  const [user, setUser] = useState<User | null>(null); // Update the type here
   const [focusData, setFocusData] = useState<FocusAssessmentResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [focusMap, setFocusMap] = useState<FocusMap>({
@@ -91,6 +81,9 @@ const FocusMapPage = () => {
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
   const [viewportOffset, setViewportOffset] = useState({ x: 0, y: 0 });
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [aiInsights, setAiInsights] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   // Check authentication status on mount
   useEffect(() => {
@@ -332,12 +325,53 @@ const FocusMapPage = () => {
     });
   };
 
-  // Add this useEffect near your other useEffect hooks
+  // Function to generate AI insights about the focus map
+  const generateAiInsights = async () => {
+    console.log("Generating AI insights...");
+    setAiLoading(true);
+    setAiError(null);
+  
+    try {
+      // Create a detailed map data object based on the focus map data
+      const mapData = {
+        overallScore: focusData?.focusScore || 0,
+        categoryScores: focusData?.categoryScores || {},
+        nodeCount: focusMap.nodes.length,
+        nodeTypes: focusMap.nodes.reduce((types, node) => {
+          types[node.type] = (types[node.type] || 0) + 1;
+          return types;
+        }, {} as Record<string, number>)
+      };
+  
+      // Include mapData details in the prompt
+      const prompt = `
+        I want you to analyze my focus map and provide personalized insights and suggestions only provide 3.
+        
+        Here's my full focus data:
+        ${JSON.stringify(mapData, null, 2)}
+        
+        Based on the above, please provide make sure it stays CONCISE and actionable insights on the following:
+        1. A brief analysis of my current focus strengths and weaknesses
+        2. 3-5 specific, actionable suggestions to improve my focus
+        3. Recommendations for how I could better structure my focus map
+      `;
+  
+      const response = await getGeminiResponse(prompt);
+  
+      if (response.error) {
+        setAiError(response.error);
+      } else {
+        setAiInsights(response.text);
+        console.log("AI insights successfully generated!");
+      }
+    } catch (error) {
+      setAiError(`Failed to generate insights: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   useEffect(() => {
-    // This will trigger a re-render of SVG connections when node positions change
-    // The stringified positions create a dependency that forces an update when any node moves
-    const nodePositions = focusMap.nodes.map(node => `${node.id}-${node.position.x}-${node.position.y}`).join(',');
-    // This is an empty function body since we just need the dependency tracking
   }, [focusMap.nodes]);
   
   if (loading) {
@@ -374,6 +408,17 @@ const FocusMapPage = () => {
             }}
             className="bg-gray-800/50 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-accent"
           />
+          
+          <motion.button
+            onClick={() => generateAiInsights()}
+            className={`px-4 py-2 rounded-lg flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white`}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            disabled={aiLoading || !focusData}
+          >
+            {aiLoading ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
+            AI Insights
+          </motion.button>
           
           <motion.button
             onClick={saveMap}
@@ -491,6 +536,16 @@ const FocusMapPage = () => {
 
         {/* Main canvas area */}
         <div className="flex-1 relative overflow-hidden" onMouseDown={startDrag} onMouseMove={onDrag} onMouseUp={endDrag} onMouseLeave={endDrag}>
+          {/* Canvas Dotted Background */}
+          <div 
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              backgroundImage: `radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)`,
+              backgroundSize: `${20 * zoom}px ${20 * zoom}px`,
+              backgroundPosition: `${viewportOffset.x % (20 * zoom)}px ${viewportOffset.y % (20 * zoom)}px`,
+            }}
+          />
+
           {/* Canvas Controls */}
           <div className="absolute top-4 right-4 flex gap-2 bg-gray-800/70 p-2 rounded-lg backdrop-blur-sm z-10">
             <button
@@ -587,8 +642,45 @@ const FocusMapPage = () => {
           </div>
         </div>
 
-        {/* Right sidebar - Properties */}
-        {selectedNode && (
+        {/* Right sidebar - Properties or AI Insights */}
+        {aiInsights ? (
+          <motion.div 
+            className="w-144 border-l border-gray-800 p-6 overflow-y-auto" // Changed from w-72 to w-96 for more width
+            initial={{ x: 20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-medium">AI Focus Insights</h2>
+              <button
+                onClick={() => setAiInsights(null)}
+                className="text-gray-400 hover:text-gray-300"
+              >
+                &times;
+              </button>
+            </div>
+            
+            {aiError ? (
+              <div className="p-4 bg-red-900/30 border border-red-800 rounded-lg">
+                <p className="text-red-400 text-sm">{aiError}</p>
+              </div>
+            ) : (
+              <div className="prose prose-invert prose-sm max-w-none">
+                <div dangerouslySetInnerHTML={{ __html: marked.parse(aiInsights) }} />
+              </div>
+            )}
+            
+            <div className="mt-6">
+              <button
+                onClick={() => setAiInsights(null)}
+                className="w-full px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm"
+              >
+                Return to Node Editor
+              </button>
+            </div>
+          </motion.div>
+        ) : selectedNode ? (
+          // Your existing selected node editor
           <motion.div 
             className="w-72 border-l border-gray-800 p-6 overflow-y-auto"
             initial={{ x: 20, opacity: 0 }}
@@ -706,7 +798,7 @@ const FocusMapPage = () => {
               )}
             </div>
           </motion.div>
-        )}
+        ) : null}
       </div>
     </div>
   );
