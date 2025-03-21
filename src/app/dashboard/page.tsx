@@ -180,7 +180,8 @@ export default function DashboardPage() {
             <h2 className="text-lg font-medium mb-2">Welcome, {user?.displayName || 'there'}!</h2>
             <p className="text-foreground/70 mb-4">Map your cognitive patterns and optimize your focus based on neuroscientific research.</p>
             <motion.button
-              className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/80"
+              onClick={() => router.push('/focus-assessment')}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/80 cursor-pointer"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
@@ -261,6 +262,7 @@ export default function DashboardPage() {
                 Create your first cognitive focus map to visualize your attention patterns. Based on peer-reviewed research in neuroscience.
               </p>
               <motion.button
+                onClick={() => router.push('/focus-assessment')}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/80"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
