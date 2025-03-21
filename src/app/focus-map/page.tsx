@@ -18,7 +18,7 @@ import {
 import { auth, db } from '../firebase';
 import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
-// Types for focus map nodes and connections
+// Types for focus map nodes
 interface FocusNode {
   id: string;
   type: 'task' | 'break' | 'habit' | 'environment';
@@ -30,19 +30,10 @@ interface FocusNode {
   color?: string;
 }
 
-interface Connection {
-  id: string;
-  source: string;
-  target: string;
-  label?: string;
-  strength?: number;
-}
-
 interface FocusMap {
   id?: string;
   name: string;
   nodes: FocusNode[];
-  connections: Connection[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -86,13 +77,12 @@ const CategoryIcon = ({ category }: { category: string }) => {
 
 const FocusMapPage = () => {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<unknown>(null);
   const [focusData, setFocusData] = useState<FocusAssessmentResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [focusMap, setFocusMap] = useState<FocusMap>({
     name: 'My Focus Map',
     nodes: [],
-    connections: [],
   });
   const [selectedNode, setSelectedNode] = useState<FocusNode | null>(null);
   const [mapName, setMapName] = useState('My Focus Map');
@@ -184,18 +174,9 @@ const FocusMapPage = () => {
       });
     });
     
-    // Create connections from center to each category
-    const connections: Connection[] = categories.map(([category]) => ({
-      id: `center-${category}`,
-      source: 'center',
-      target: category,
-      strength: assessmentData.categoryScores[category as keyof typeof assessmentData.categoryScores] / 100
-    }));
-    
     setFocusMap({
       name: 'My Focus Map',
       nodes,
-      connections,
     });
     
     setLoading(false);
@@ -310,32 +291,11 @@ const FocusMapPage = () => {
     setFocusMap(prev => ({
       ...prev,
       nodes: prev.nodes.filter(node => node.id !== id),
-      connections: prev.connections.filter(
-        conn => conn.source !== id && conn.target !== id
-      )
     }));
     
     if (selectedNode?.id === id) {
       setSelectedNode(null);
     }
-    
-    setHasUnsavedChanges(true);
-  };
-  
-  // Add a connection between nodes
-  const addConnection = (sourceId: string, targetId: string) => {
-    const newId = `conn-${Date.now()}`;
-    const newConnection: Connection = {
-      id: newId,
-      source: sourceId,
-      target: targetId,
-      strength: 0.5
-    };
-    
-    setFocusMap(prev => ({
-      ...prev,
-      connections: [...prev.connections, newConnection]
-    }));
     
     setHasUnsavedChanges(true);
   };
@@ -371,6 +331,14 @@ const FocusMapPage = () => {
       return Math.max(0.5, Math.min(2, newZoom));
     });
   };
+
+  // Add this useEffect near your other useEffect hooks
+  useEffect(() => {
+    // This will trigger a re-render of SVG connections when node positions change
+    // The stringified positions create a dependency that forces an update when any node moves
+    const nodePositions = focusMap.nodes.map(node => `${node.id}-${node.position.x}-${node.position.y}`).join(',');
+    // This is an empty function body since we just need the dependency tracking
+  }, [focusMap.nodes]);
   
   if (loading) {
     return (
@@ -546,48 +514,6 @@ const FocusMapPage = () => {
               transform: `scale(${zoom}) translate(${viewportOffset.x}px, ${viewportOffset.y}px)`
             }}
           >
-            {/* Render connections */}
-            <svg 
-              width="100%" 
-              height="100%" 
-              className="absolute top-0 left-0 pointer-events-none"
-              style={{ transform: `scale(${1/zoom})` }}
-            >
-              {focusMap.connections.map((conn) => {
-                const sourceNode = focusMap.nodes.find(n => n.id === conn.source);
-                const targetNode = focusMap.nodes.find(n => n.id === conn.target);
-                
-                if (!sourceNode || !targetNode) return null;
-                
-                // Scale positions based on zoom and offset
-                const sourceX = (sourceNode.position.x * zoom) + viewportOffset.x;
-                const sourceY = (sourceNode.position.y * zoom) + viewportOffset.y;
-                const targetX = (targetNode.position.x * zoom) + viewportOffset.x;
-                const targetY = (targetNode.position.y * zoom) + viewportOffset.y;
-                
-                // Calculate line opacity based on connection strength
-                const opacity = 0.3 + (conn.strength || 0.5) * 0.7;
-                const strokeWidth = 1 + (conn.strength || 0.5) * 2;
-                
-                // Determine color based on source node category
-                const color = sourceNode.color || '#6b7280';
-                
-                return (
-                  <line
-                    key={conn.id}
-                    x1={sourceX}
-                    y1={sourceY}
-                    x2={targetX}
-                    y2={targetY}
-                    stroke={color}
-                    strokeWidth={strokeWidth}
-                    opacity={opacity}
-                    strokeDasharray={conn.strength && conn.strength < 0.3 ? "4 2" : undefined}
-                  />
-                );
-              })}
-            </svg>
-            
             {/* Render nodes */}
             {focusMap.nodes.map((node) => (
               <motion.div
@@ -599,24 +525,28 @@ const FocusMapPage = () => {
                   left: node.position.x,
                   top: node.position.y,
                   transform: 'translate(-50%, -50%)',
-                  width: node.id === 'center' ? '120px' : '160px',
+                  width: node.id === 'center' ? '240px' : '160px',
                   backgroundColor: node.color ? `${node.color}20` : undefined,
-                  borderColor: node.id === selectedNode?.id ? 'var(--accent)' : node.color || undefined
+                  borderColor: node.id === selectedNode?.id ? 'var(--accent)' : node.color || undefined,
+                  cursor: node.id === 'center' ? 'pointer' : 'move'
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleNodeSelect(node);
                 }}
-                drag
+                drag={node.id !== 'center'} // Only allow dragging for non-center nodes
                 dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
                 dragElastic={0}
                 dragMomentum={false}
                 onDragStart={() => setIsDragging(false)} // Prevent canvas drag when dragging nodes
                 onDrag={(_, info) => {
-                  // Update node position while dragging
-                  const x = node.position.x + info.delta.x / zoom;
-                  const y = node.position.y + info.delta.y / zoom;
-                  updateNodePosition(node.id, { x, y });
+                  // Only update position for non-center nodes
+                  if (node.id !== 'center') {
+                    const x = node.position.x + info.delta.x / zoom;
+                    const y = node.position.y + info.delta.y / zoom;
+                    
+                    updateNodePosition(node.id, { x, y });
+                  }
                 }}
               >
                 <div className="flex items-center justify-between mb-1">
@@ -736,73 +666,44 @@ const FocusMapPage = () => {
               {selectedNode.score !== undefined && (
                 <div>
                   <label className="block text-sm text-foreground/70 mb-1">Score</label>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={selectedNode.score}
-                    onChange={(e) => updateNode(selectedNode.id, { score: parseInt(e.target.value) })}
-                    className="w-full accent-accent"
-                  />
-                  <div className="flex justify-between text-xs text-foreground/50">
-                    <span>0%</span>
-                    <span>{selectedNode.score}%</span>
-                    <span>100%</span>
-                  </div>
+                  {/* For assessment-derived nodes (center node or category nodes), show a non-editable score */}
+                  {(selectedNode.id === 'center' || Object.keys(categoryColors).includes(selectedNode.id)) ? (
+                    <div className="flex flex-col">
+                      <div className="w-full h-2 bg-gray-700 rounded-full mt-1 mb-2">
+                        <div 
+                          className="h-full rounded-full" 
+                          style={{ 
+                            width: `${selectedNode.score}%`,
+                            backgroundColor: selectedNode.color || 'var(--accent)' 
+                          }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-xs text-foreground/50">
+                        <span>0%</span>
+                        <span className="font-medium text-sm">{selectedNode.score}%</span>
+                        <span>100%</span>
+                      </div>
+                    </div>
+                  ) : (
+                    // For user-created nodes, allow score editing
+                    <>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={selectedNode.score}
+                        onChange={(e) => updateNode(selectedNode.id, { score: parseInt(e.target.value) })}
+                        className="w-full accent-accent"
+                      />
+                      <div className="flex justify-between text-xs text-foreground/50">
+                        <span>0%</span>
+                        <span>{selectedNode.score}%</span>
+                        <span>100%</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
-              
-              <div>
-                <label className="block text-sm text-foreground/70 mb-3">Connections</label>
-                <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
-                  {focusMap.nodes
-                    .filter(n => n.id !== selectedNode.id)
-                    .map(node => {
-                      const isConnected = focusMap.connections.some(
-                        conn => (conn.source === selectedNode.id && conn.target === node.id) || 
-                               (conn.target === selectedNode.id && conn.source === node.id)
-                      );
-                      
-                      return (
-                        <div key={node.id} className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            {node.category && (
-                              <div 
-                                className="w-2 h-2 rounded-full" 
-                                style={{ backgroundColor: node.color || '#6b7280' }} 
-                              />
-                            )}
-                            <span className="text-sm truncate">{node.label}</span>
-                          </div>
-                          <button
-                            onClick={() => {
-                              if (isConnected) {
-                                // Remove connection
-                                setFocusMap(prev => ({
-                                  ...prev,
-                                  connections: prev.connections.filter(
-                                    conn => !((conn.source === selectedNode.id && conn.target === node.id) || 
-                                           (conn.target === selectedNode.id && conn.source === node.id))
-                                  )
-                                }));
-                              } else {
-                                // Add connection
-                                addConnection(selectedNode.id, node.id);
-                              }
-                            }}
-                            className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                              isConnected 
-                                ? 'bg-accent text-white' 
-                                : 'bg-gray-800 text-foreground/50 hover:bg-gray-700'
-                            }`}
-                          >
-                            {isConnected ? <Check size={14} /> : <Plus size={14} />}
-                          </button>
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
             </div>
           </motion.div>
         )}
