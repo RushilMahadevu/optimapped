@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Brain, ArrowLeft, ArrowRight, CheckCircle, Clock } from "lucide-react";
+import { Brain, ArrowLeft, ArrowRight, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { auth, db } from "../firebase";
 import { doc, setDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
@@ -156,6 +156,8 @@ export default function FocusAssessmentPage() {
   const [showResults, setShowResults] = useState(false);
   const [savingResults, setSavingResults] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [assessmentResults, setAssessmentResults] = useState<AssessmentResults | null>(null);
+  const [showRetakeWarning, setShowRetakeWarning] = useState(false);
   
   // Check authentication status on mount
   useEffect(() => {
@@ -284,8 +286,9 @@ export default function FocusAssessmentPage() {
     if (currentQuestion < focusQuestions.length - 1) {
       setCurrentQuestion(currentQuestion + 1);
     } else {
-      // Automatically save results when the last question is answered
+      // Calculate results once when assessment is complete
       const finalResults = calculateResults();
+      setAssessmentResults(finalResults);
       saveResultsToFirestore(finalResults);
       setShowResults(true);
     }
@@ -297,7 +300,7 @@ export default function FocusAssessmentPage() {
     }
   };
   
-  const results = calculateResults();
+  const results = assessmentResults || calculateResults();
 
   // Map category names to readable versions
   const categoryLabels: {[key: string]: string} = {
@@ -594,11 +597,7 @@ export default function FocusAssessmentPage() {
               </motion.button>
               
               <motion.button
-                onClick={() => {
-                  setShowResults(false);
-                  setCurrentQuestion(0);
-                  setAnswers({});
-                }}
+                onClick={() => setShowRetakeWarning(true)}
                 className="px-6 py-3 bg-transparent border border-gray-700 rounded-lg font-medium hover:bg-gray-800/30"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
@@ -607,6 +606,51 @@ export default function FocusAssessmentPage() {
                 Retake Assessment
               </motion.button>
             </div>
+
+            {/* Retake Warning Dialog */}
+            {showRetakeWarning && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+              >
+                <motion.div
+                  initial={{ scale: 0.95 }}
+                  animate={{ scale: 1 }}
+                  className="bg-background border border-gray-800 rounded-lg max-w-md w-full p-6"
+                >
+                  <div className="flex items-start gap-4 mb-4">
+                    <AlertCircle className="text-amber-400 flex-shrink-0 mt-1" />
+                    <div>
+                      <h3 className="font-semibold text-lg mb-2">Are you sure?</h3>
+                      <p className="text-foreground/70 mb-4">
+                        It&apos;s recommended to only retake the assessment if you made mistakes in your answers. Your focus score will naturally improve through creating and following focus maps rather than retaking the assessment.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-3 mt-6">
+                    <button
+                      onClick={() => setShowRetakeWarning(false)}
+                      className="px-4 py-2 border border-gray-700 rounded-lg hover:bg-gray-800/30"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowRetakeWarning(false);
+                        setShowResults(false);
+                        setCurrentQuestion(0);
+                        setAnswers({});
+                        setAssessmentResults(null);
+                      }}
+                      className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90"
+                    >
+                      Continue
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
           </motion.div>
         )}
       </main>

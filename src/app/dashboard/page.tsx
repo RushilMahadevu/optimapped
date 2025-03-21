@@ -7,7 +7,7 @@ import { auth, db } from "../firebase";
 import { User } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import Link from "next/link";
-import { LogOut, Brain, Settings, Plus, User as UserIcon, Search, Clock, LineChart, AlertTriangle, Award } from "lucide-react";
+import { LogOut, Brain, Settings, Plus, User as UserIcon, Search, Clock, LineChart, AlertTriangle, Award, Map, RotateCcw, ScanEye } from "lucide-react";
 
 // Type definition for focus assessment results
 interface FocusAssessmentResult {
@@ -38,6 +38,7 @@ export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [focusData, setFocusData] = useState<FocusAssessmentResult | null>(null);
+  const [showRetakeWarning, setShowRetakeWarning] = useState(false);
   const router = useRouter();
 
   // Check authentication status on mount
@@ -159,7 +160,7 @@ export default function DashboardPage() {
             className="flex items-center gap-3 px-3 py-2 text-sm rounded-lg bg-gray-800/50 font-medium"
             whileHover={{ x: 2 }}
           >
-            <Brain size={18} />
+            <ScanEye size={18} />
             <span>Focus Mapping</span>
           </motion.div>
           
@@ -279,13 +280,13 @@ export default function DashboardPage() {
                   </p>
                 </div>
                 <motion.button
-                  onClick={() => router.push('/focus-assessment')}
+                  onClick={() => setShowRetakeWarning(true)}
                   className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-accent/20 text-accent rounded-lg text-sm font-medium hover:bg-accent/30 cursor-pointer whitespace-nowrap"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <Plus size={16} />
-                  New Assessment
+                  <RotateCcw size={16} />
+                  Retake Assessment
                 </motion.button>
               </div>
             ) : (
@@ -468,7 +469,7 @@ export default function DashboardPage() {
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.4 }}
             >
-              <Brain size={32} className="mx-auto mb-4 text-gray-500" />
+              <Map size={32} className="mx-auto mb-4 text-gray-500" />
               <h3 className="text-lg font-medium mb-2">No focus maps yet</h3>
               <p className="text-foreground/70 mb-4 max-w-md mx-auto">
                 Create your first cognitive focus map to visualize your attention patterns. Based on peer-reviewed research in neuroscience.
@@ -525,6 +526,50 @@ export default function DashboardPage() {
             </div>
           </motion.div>
         </motion.div>
+        
+        {/* Retake Warning Modal */}
+        {showRetakeWarning && (
+          <motion.div
+            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-background border border-gray-800 rounded-lg max-w-md w-full p-6"
+              initial={{ scale: 0.95 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0.95 }}
+            >
+              <div className="flex items-start gap-4 mb-4">
+                <AlertTriangle className="text-amber-400 flex-shrink-0 mt-1" />
+                <div>
+                  <h3 className="font-semibold text-lg mb-2">Are you sure?</h3>
+                  <p className="text-foreground/70 mb-4">
+                    It&apos;s recommended to only retake the assessment if you made mistakes in your answers. Your focus score will naturally improve through creating and following focus maps rather than retaking the assessment.
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setShowRetakeWarning(false)}
+                  className="px-4 py-2 border border-gray-700 rounded-lg hover:bg-gray-800/30"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setShowRetakeWarning(false);
+                    router.push('/focus-assessment');
+                  }}
+                  className="px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90"
+                >
+                  Continue
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </main>
 
       {/* Mobile navigation */}
