@@ -10,7 +10,6 @@ import Link from "next/link";
 import { 
   ArrowLeft, 
   UserCircle, 
-  PencilLine, 
   Save, 
   Trash2, 
   LogOut,
@@ -229,10 +228,6 @@ export default function SettingsPage() {
                 <div>
                 <h3 className="font-medium">{user?.displayName || 'User'}</h3>
                 <p className="text-sm text-foreground/70">{user?.email}</p>
-                <button className="mt-2 text-xs text-accent hover:underline inline-flex items-center gap-1">
-                    <PencilLine size={12} />
-                    Change profile photo
-                </button>
                 </div>
             </div>
 
@@ -255,18 +250,6 @@ export default function SettingsPage() {
                     className="w-full px-3 py-2 bg-gray-800/30 border border-gray-700 rounded-lg text-foreground/70"
                     />
                 </div>
-                </div>
-
-                <div>
-                <label className="block text-sm text-foreground/70 mb-1">Time Zone</label>
-                <select className="w-full px-3 py-2 bg-gray-800/50 border border-gray-700 rounded-lg focus:outline-none focus:ring-1 focus:ring-accent">
-                    <option>UTC (Coordinated Universal Time)</option>
-                    <option>America/New_York (Eastern Time)</option>
-                    <option>America/Chicago (Central Time)</option>
-                    <option>America/Denver (Mountain Time)</option>
-                    <option>America/Los_Angeles (Pacific Time)</option>
-                    <option>Europe/London (British Time)</option>
-                </select>
                 </div>
             </div>
             </div>
