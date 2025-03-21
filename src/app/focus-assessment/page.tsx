@@ -1,10 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Brain, ArrowLeft, ArrowRight, CheckCircle, Clock } from "lucide-react";
 import Link from "next/link";
+import { auth, db } from "../firebase";
+import { doc, setDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { User } from "firebase/auth";
 
 // Types for focus assessment questions and responses
 interface Question {
@@ -15,6 +18,20 @@ interface Question {
     value: number;
   }[];
   category: "attention" | "distraction" | "environment" | "habits" | "cognitive";
+}
+
+interface AssessmentResults {
+  focusScore: number;
+  categoryScores: {
+    [key: string]: number;
+  };
+  peakFocusHours: string;
+  strengths: string[];
+  improvements: string[];
+  answers: {
+    [key: number]: number;
+  };
+  completedAt: string;
 }
 
 // Assessment questions
@@ -137,13 +154,31 @@ export default function FocusAssessmentPage() {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<{[key: number]: number}>({});
   const [showResults, setShowResults] = useState(false);
+  const [savingResults, setSavingResults] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  
+  // Check authentication status on mount
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+      } else {
+        // Redirect to login page if not authenticated
+        router.push("/authorization");
+      }
+    });
+
+    return () => unsubscribe();
+  }, [router]);
 
   // Calculate results based on answers
   const calculateResults = () => {
     // Calculate the overall focus score (0-100)
-    const totalPoints = Object.values(answers).reduce((sum, value) => sum + value, 0);
-    const maxPossiblePoints = focusQuestions.length * 4; // Maximum 4 points per question
-    const focusScore = Math.round((totalPoints / maxPossiblePoints) * 100);
+    // Convert answers object values to array and sum only defined values
+    const answeredPoints = Object.values(answers).reduce((sum, value) => sum + (value || 0), 0);
+    const questionsAnswered = Object.keys(answers).length;
+    const maxPossiblePoints = questionsAnswered * 4; // Maximum 4 points per answered question
+    const focusScore = Math.round((answeredPoints / maxPossiblePoints) * 100);
     
     // Calculate category scores
     const categoryScores: {[key: string]: {score: number, maxScore: number}} = {
@@ -154,10 +189,13 @@ export default function FocusAssessmentPage() {
       cognitive: {score: 0, maxScore: 0},
     };
     
+    // Only count questions that have been answered
     focusQuestions.forEach(q => {
-      const answer = answers[q.id] || 0;
-      categoryScores[q.category].score += answer;
-      categoryScores[q.category].maxScore += 4; // Max points per question
+      const answer = answers[q.id];
+      if (typeof answer !== 'undefined') {
+        categoryScores[q.category].score += answer;
+        categoryScores[q.category].maxScore += 4; // Max points per question
+      }
     });
     
     // Determine peak focus hours based on question 3
@@ -192,13 +230,49 @@ export default function FocusAssessmentPage() {
       focusScore,
       categoryScores: Object.fromEntries(
         Object.entries(categoryScores).map(([k, v]) => 
-          [k, Math.round((v.score / v.maxScore) * 100)]
+          [k, Math.round((v.score / v.maxScore) * 100) ]
         )
       ),
       peakFocusHours,
       strengths: strengths.length > 0 ? strengths : ["balanced"],
-      improvements: improvements.length > 0 ? improvements : []
+      improvements: improvements.length > 0 ? improvements : [],
+      answers: answers, // Store raw answers for future reference
+      completedAt: new Date().toISOString(),
     };
+  };
+
+  // Save results to Firestore and localStorage
+  const saveResultsToFirestore = async (results: AssessmentResults) => {
+    if (!user) {
+      console.error("No authenticated user");
+      return;
+    }
+    
+    setSavingResults(true);
+
+    try {
+      // Save to Firestore
+      const assessmentRef = collection(db, "users", user.uid, "assessments");
+      await addDoc(assessmentRef, {
+        ...results,
+        type: "focus",
+        timestamp: serverTimestamp(),
+      });
+      
+      // Update the user's latest focus assessment
+      await setDoc(doc(db, "users", user.uid), {
+        latestFocusAssessment: results,
+        lastUpdated: serverTimestamp(),
+      }, { merge: true });
+      
+      // Save to localStorage as well for quick access
+      localStorage.setItem('focusAssessmentResults', JSON.stringify(results));
+
+      setSavingResults(false);
+    } catch (error) {
+      console.error("Error saving assessment results:", error);
+      setSavingResults(false);
+    }
   };
 
   const handleAnswer = (value: number) => {
@@ -210,6 +284,9 @@ export default function FocusAssessmentPage() {
     if (currentQuestion < focusQuestions.length - 1) {
       setCurrentQuestion(currentQuestion + 1);
     } else {
+      // Automatically save results when the last question is answered
+      const finalResults = calculateResults();
+      saveResultsToFirestore(finalResults);
       setShowResults(true);
     }
   };
@@ -346,7 +423,9 @@ export default function FocusAssessmentPage() {
               transition={{ delay: 0.2 }}
             >
               <CheckCircle />
-              <span className="font-medium">Assessment completed successfully!</span>
+              <span className="font-medium">
+                {savingResults ? "Saving your results..." : "Assessment completed successfully!"}
+              </span>
             </motion.div>
             
             {/* Focus score */}
@@ -427,6 +506,7 @@ export default function FocusAssessmentPage() {
               </div>
             </motion.div>
             
+            {/* Rest of the component remains the same */}
             {/* Key insights */}
             <motion.div 
               className="bg-gray-800/30 rounded-xl p-6 mb-6 border border-gray-800"
@@ -508,6 +588,7 @@ export default function FocusAssessmentPage() {
                 className="px-6 py-3 bg-accent text-white rounded-lg font-medium hover:bg-accent/90"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
+                disabled={savingResults}
               >
                 Return to Dashboard
               </motion.button>
@@ -521,6 +602,7 @@ export default function FocusAssessmentPage() {
                 className="px-6 py-3 bg-transparent border border-gray-700 rounded-lg font-medium hover:bg-gray-800/30"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
+                disabled={savingResults}
               >
                 Retake Assessment
               </motion.button>
