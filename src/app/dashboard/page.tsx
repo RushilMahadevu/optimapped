@@ -191,6 +191,7 @@ export default function DashboardPage() {
           <motion.div
             className="flex items-center gap-3 px-3 py-2 text-sm rounded-lg text-foreground/70 hover:text-foreground hover:bg-gray-800/30 transition-colors cursor-pointer"
             whileHover={{ x: 2 }}
+            onClick={() => router.push('/settings')}
           >
             <Settings size={18} />
             <span>Settings</span>

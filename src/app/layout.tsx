@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "optimapped.",
+  title: "optimapped",
   description: "Map your cognitive patterns and optimize your focus based on neuroscientific research.",
 };
 
