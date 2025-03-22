@@ -17,7 +17,7 @@ import {
 import { auth, db } from '../firebase';
 import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { User } from 'firebase/auth'; // Add this import
-import { getGeminiResponse, GeminiResponse } from '../utils/geminiApi';
+import { getGeminiResponse } from '../utils/geminiApi';
 import { marked } from 'marked';
 
 // Types for focus map nodes
@@ -84,6 +84,13 @@ const FocusMapPage = () => {
   const [aiInsights, setAiInsights] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [recommendedCourse, setRecommendedCourse] = useState<{
+    courseName: string;
+    courseDescription: string;
+    courseBenefits: string;
+    implementationSteps: string[];
+    scienceExplanation: string;
+  } | null>(null);
 
   // Check authentication status on mount
   useEffect(() => {
@@ -325,51 +332,91 @@ const FocusMapPage = () => {
     });
   };
 
-  // Function to generate AI insights about the focus map
-  const generateAiInsights = async () => {
-    console.log("Generating AI insights...");
-    setAiLoading(true);
-    setAiError(null);
-  
-    try {
-      // Create a detailed map data object based on the focus map data
-      const mapData = {
-        overallScore: focusData?.focusScore || 0,
-        categoryScores: focusData?.categoryScores || {},
-        nodeCount: focusMap.nodes.length,
-        nodeTypes: focusMap.nodes.reduce((types, node) => {
-          types[node.type] = (types[node.type] || 0) + 1;
-          return types;
-        }, {} as Record<string, number>)
-      };
-  
-      // Include mapData details in the prompt
-      const prompt = `
-        I want you to analyze my focus map and provide personalized insights and suggestions only provide 3.
-        
-        Here's my full focus data:
-        ${JSON.stringify(mapData, null, 2)}
-        
-        Based on the above, please provide make sure it stays CONCISE and actionable insights on the following:
-        1. A brief analysis of my current focus strengths and weaknesses
-        2. 3-5 specific, actionable suggestions to improve my focus
-        3. Recommendations for how I could better structure my focus map
-      `;
-  
-      const response = await getGeminiResponse(prompt);
-  
-      if (response.error) {
-        setAiError(response.error);
-      } else {
-        setAiInsights(response.text);
-        console.log("AI insights successfully generated!");
+  // Function to generate AI insights about the focus map and suggest courses
+const generateAiInsights = async () => {
+  console.log("Generating AI insights...");
+  setAiLoading(true);
+  setAiError(null);
+
+  try {
+    // Create a detailed map data object based on the focus map data
+    const mapData = {
+      overallScore: focusData?.focusScore || 0,
+      categoryScores: focusData?.categoryScores || {},
+      nodeCount: focusMap.nodes.length,
+      nodeTypes: focusMap.nodes.reduce((types, node) => {
+        types[node.type] = (types[node.type] || 0) + 1;
+        return types;
+      }, {} as Record<string, number>),
+      peakFocusHours: focusData?.peakFocusHours || "",
+      strengths: focusData?.strengths || [],
+      improvements: focusData?.improvements || []
+    };
+
+    // Include mapData details and specific scientific frameworks in the prompt
+    const prompt = `
+      I want you to analyze my focus map and provide personalized insights and course recommendations.
+      Use bold, italics, and bullet points for better readability.
+      Here's my full focus data:
+      ${JSON.stringify(mapData, null, 2)}
+      
+      Based on my current abilities and focus data:
+      1. A brief analysis of my current focus strengths and weaknesses (2 sentences)
+      2. Recommend ONE specific focus improvement technique from this list that would best match my profile and explain why:
+         - Pomodoro Technique (25-min work/5-min break cycles)
+         - Deep Work (dedicated distraction-free intense work periods)
+         - Time Blocking (scheduling specific task time blocks)
+         - Sleep & Circadian Rhythm Regulation (consistent sleep schedule)
+         - Eisenhower Matrix (priority mapping between urgent vs important)
+         - Habit Stacking (linking new focus habits to existing ones)
+         - Ultradian Rhythm Breaks (90-min work cycles with 15-20 min breaks)
+      
+      Make your recommendation specific to my ability levels - if I'm scoring poorly in attention management, don't recommend deep 4-hour focus sessions.
+      
+      For your selected technique recommendation, provide:
+      1. A clear name for the technique course
+      2. How this specifically addresses my weaknesses
+      4. A brief scientific explanation of why this works (1-2 sentences with research backing)
+      
+      Format your entire response in clear markdown with headers and bullet points.
+      Also include a JSON block at the end that I can parse programmatically:
+      
+      \`\`\`json
+      {
+        "courseName": "Name of Recommended Technique",
+        "courseDescription": "2-sentence description of the technique",
+        "courseBenefits": "How this addresses my specific weaknesses",
+        "implementationSteps": ["Step 1", "Step 2", "Step 3"],
+        "scienceExplanation": "Brief scientific explanation with research citation"
       }
-    } catch (error) {
-      setAiError(`Failed to generate insights: ${error instanceof Error ? error.message : String(error)}`);
-    } finally {
-      setAiLoading(false);
+      \`\`\`
+    `;
+
+    const response = await getGeminiResponse(prompt);
+
+    if (response.error) {
+      setAiError(response.error);
+    } else {
+      setAiInsights(response.text);
+      console.log("AI insights successfully generated!");
+      
+      // Extract the course recommendation JSON if present
+      const jsonMatch = response.text.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonMatch && jsonMatch[1]) {
+        try {
+          const courseData = JSON.parse(jsonMatch[1]);
+          setRecommendedCourse(courseData);
+        } catch (error) {
+          console.error("Failed to parse course JSON:", error);
+        }
+      }
     }
-  };
+  } catch (error) {
+    setAiError(`Failed to generate insights: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    setAiLoading(false);
+  }
+};
 
   useEffect(() => {
   }, [focusMap.nodes]);
@@ -580,7 +627,7 @@ const FocusMapPage = () => {
                   left: node.position.x,
                   top: node.position.y,
                   transform: 'translate(-50%, -50%)',
-                  width: node.id === 'center' ? '240px' : '160px',
+                  width: node.id === 'center' ? '240px' : '200px',
                   backgroundColor: node.color ? `${node.color}20` : undefined,
                   borderColor: node.id === selectedNode?.id ? 'var(--accent)' : node.color || undefined,
                   cursor: node.id === 'center' ? 'pointer' : 'move'
@@ -645,7 +692,7 @@ const FocusMapPage = () => {
         {/* Right sidebar - Properties or AI Insights */}
         {aiInsights ? (
           <motion.div 
-            className="w-144 border-l border-gray-800 p-6 overflow-y-auto" // Changed from w-72 to w-96 for more width
+            className="w-144 border-l border-gray-800 p-6 overflow-y-auto"
             initial={{ x: 20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ duration: 0.3 }}
@@ -666,7 +713,81 @@ const FocusMapPage = () => {
               </div>
             ) : (
               <div className="prose prose-invert prose-sm max-w-none">
-                <div dangerouslySetInnerHTML={{ __html: marked.parse(aiInsights) }} />
+                {/* Custom styling for better readability */}
+                <style jsx global>{`
+                  .ai-insights h1, .ai-insights h2 {
+                    margin-top: 1.5em;
+                    margin-bottom: 0.75em;
+                    font-weight: 600;
+                  }
+                  .ai-insights h3, .ai-insights h4 {
+                    margin-top: 1.25em;
+                    margin-bottom: 0.5em;
+                  }
+                  .ai-insights p {
+                    margin-top: 1em;
+                    margin-bottom: 1em;
+                    line-height: 1.6;
+                  }
+                  .ai-insights ul, .ai-insights ol {
+                    padding-left: 1.5em;
+                    margin-top: 0.75em;
+                    margin-bottom: 0.75em;
+                  }
+                  .ai-insights li {
+                    margin-top: 0.5em;
+                    margin-bottom: 0.5em;
+                    line-height: 1.5;
+                  }
+                  .ai-insights strong {
+                    color: #d8b4fe; /* Light purple */
+                    font-weight: 600;
+                  }
+                  .ai-insights em {
+                    color: #93c5fd; /* Light blue */
+                  }
+                  .ai-insights code {
+                    background: rgba(71, 85, 105, 0.3); /* Subtle background */
+                    padding: 0.2em 0.4em;
+                    border-radius: 0.25em;
+                  }
+                  .ai-insights pre {
+                    margin: 1em 0;
+                    padding: 1em;
+                    background: rgba(15, 23, 42, 0.6);
+                    border-radius: 0.5em;
+                    overflow-x: auto;
+                  }
+                  .ai-insights blockquote {
+                    border-left: 4px solid #8b5cf6; /* Purple border */
+                    padding-left: 1em;
+                    margin-left: 0;
+                    color: #cbd5e1; /* Lighter text */
+                  }
+                  .ai-insights hr {
+                    margin: 1.5em 0;
+                    border-color: rgba(100, 116, 139, 0.3);
+                  }
+                `}</style>
+                <div 
+                  className="ai-insights"
+                  dangerouslySetInnerHTML={{ __html: marked.parse(aiInsights) }} 
+                />
+              </div>
+            )}
+            
+            {recommendedCourse && (
+              <div className="mt-8 border border-purple-700 rounded-lg p-4 bg-purple-900/20">
+                <h3 className="text-lg font-medium mb-2">Recommended Focus Training</h3>
+                <p className="text-sm mb-4">{recommendedCourse.courseDescription}</p>
+                
+                <button
+                  onClick={() => router.push(`/focus-training/${encodeURIComponent(recommendedCourse.courseName.toLowerCase().replace(/\s+/g, '-'))}`)}
+                  className="w-full py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-white font-medium flex items-center justify-center gap-2"
+                >
+                  <Sparkles size={18} />
+                  Start {recommendedCourse.courseName} Training
+                </button>
               </div>
             )}
             
