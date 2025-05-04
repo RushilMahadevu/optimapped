@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "../firebase";
 import { User } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, collection, query, getDocs, orderBy, limit } from "firebase/firestore";
 import Link from "next/link";
 import { LogOut, Brain, Settings, Plus, User as UserIcon, Search, Clock, LineChart, AlertTriangle, Award, Map, RotateCcw, ScanEye } from "lucide-react";
 
@@ -34,11 +34,27 @@ const categoryLabels: {[key: string]: string} = {
   cognitive: "Cognitive Control"
 };
 
+// New interface for Focus Maps
+interface FocusMapPreview {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  preview: {
+    nodeCount: number;
+    focusScore: number;
+    mainCategory: string;
+    color: string;
+  };
+}
+
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [focusData, setFocusData] = useState<FocusAssessmentResult | null>(null);
   const [showRetakeWarning, setShowRetakeWarning] = useState(false);
+  const [focusMaps, setFocusMaps] = useState<FocusMapPreview[]>([]);
+  const [mapsLoading, setMapsLoading] = useState(true);
   const router = useRouter();
 
   // Check authentication status on mount
@@ -126,6 +142,45 @@ export default function DashboardPage() {
     if (score >= 30) return "Needs Improvement";
     return "Significant Attention Required";
   }
+
+  // Fetch focus maps from Firestore
+  const fetchFocusMaps = async (userId: string) => {
+    try {
+      setMapsLoading(true);
+      const mapsRef = collection(db, "users", userId, "focus-maps");
+      const q = query(mapsRef, orderBy("createdAt", "desc"), limit(4));
+      const snapshot = await getDocs(q);
+      
+      const maps: FocusMapPreview[] = [];
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        maps.push({
+          id: doc.id,
+          name: data.name || "Untitled Map",
+          createdAt: data.createdAt?.toDate?.() ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+          updatedAt: data.updatedAt || data.createdAt?.toDate?.() ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+          preview: data.preview || {
+            nodeCount: 0,
+            focusScore: 0,
+            mainCategory: "attention",
+            color: "#4f46e5"
+          }
+        });
+      });
+      
+      setFocusMaps(maps);
+      setMapsLoading(false);
+    } catch (error) {
+      console.error("Error fetching focus maps:", error);
+      setMapsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchFocusMaps(user.uid);
+    }
+  }, [user]);
 
   if (loading) {
     return (
@@ -463,28 +518,104 @@ export default function DashboardPage() {
               <button className="text-sm text-accent hover:underline">View all</button>
             </div>
             
-            {/* If no maps exist yet */}
-            <motion.div 
-              className="border border-dashed border-gray-700 rounded-xl p-10 text-center"
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.4 }}
-            >
-              <Map size={32} className="mx-auto mb-4 text-gray-500" />
-              <h3 className="text-lg font-medium mb-2">No focus maps yet</h3>
-              <p className="text-foreground/70 mb-4 max-w-md mx-auto">
-                Create your first cognitive focus map to visualize your attention patterns. Based on peer-reviewed research in neuroscience.
-              </p>
-              <motion.button
-                onClick={() => router.push('/focus-map')}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/80 cursor-pointer"
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+            {mapsLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : focusMaps.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {focusMaps.map(map => (
+                  <motion.div 
+                    key={map.id}
+                    className="border border-gray-800 bg-gray-900/30 rounded-xl overflow-hidden hover:border-gray-700 transition-colors cursor-pointer"
+                    whileHover={{ y: -2, transition: { duration: 0.2 } }}
+                    onClick={() => router.push(`/focus-map?id=${map.id}`)}
+                  >
+                    <div 
+                      className="h-32 relative"
+                      style={{ 
+                        background: `linear-gradient(45deg, ${map.preview.color}20, transparent)`,
+                        borderBottom: `2px solid ${map.preview.color}40`
+                      }}
+                    >
+                      {/* Map preview visualization */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="relative">
+                          <div className="w-16 h-16 rounded-full bg-gray-800/50 border-2" style={{ borderColor: map.preview.color }}></div>
+                          {Array.from({ length: Math.min(map.preview.nodeCount, 5) }).map((_, i) => {
+                            const angle = (Math.PI * 2 / Math.min(map.preview.nodeCount, 5)) * i;
+                            const x = Math.cos(angle) * 35;
+                            const y = Math.sin(angle) * 35;
+                            return (
+                              <div 
+                                key={i}
+                                className="w-4 h-4 absolute rounded-full bg-gray-800/70" 
+                                style={{ 
+                                  left: `calc(50% + ${x}px)`, 
+                                  top: `calc(50% + ${y}px)`, 
+                                  transform: 'translate(-50%, -50%)',
+                                  border: `1px solid ${map.preview.color}80`
+                                }}
+                              ></div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <h3 className="font-medium text-sm mb-1 truncate">{map.name}</h3>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-2 h-2 rounded-full"
+                            style={{ backgroundColor: map.preview.color }}
+                          ></div>
+                          <span className="text-xs text-foreground/70">
+                            {map.preview.nodeCount} nodes
+                          </span>
+                        </div>
+                        <span className="text-xs text-foreground/50">
+                          {getRelativeTimeString(map.updatedAt)}
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+                
+                {/* Add New Map button */}
+                <motion.div
+                  className="border border-dashed border-gray-700 rounded-xl flex flex-col items-center justify-center p-6 text-center h-full cursor-pointer hover:border-accent/50 transition-colors"
+                  whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => router.push('/focus-map')}
+                >
+                  <Plus size={24} className="mb-2 text-gray-500" />
+                  <span className="text-sm font-medium text-foreground/70">Create New Map</span>
+                </motion.div>
+              </div>
+            ) : (
+              <motion.div 
+                className="border border-dashed border-gray-700 rounded-xl p-10 text-center"
+                initial={{ y: 10, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.4 }}
               >
-                <Plus size={16} />
-                Create Your First Focus Map
-              </motion.button>
-            </motion.div>
+                <Map size={32} className="mx-auto mb-4 text-gray-500" />
+                <h3 className="text-lg font-medium mb-2">No focus maps yet</h3>
+                <p className="text-foreground/70 mb-4 max-w-md mx-auto">
+                  Create your first cognitive focus map to visualize your attention patterns. Based on peer-reviewed research in neuroscience.
+                </p>
+                <motion.button
+                  onClick={() => router.push('/focus-map')}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/80 cursor-pointer"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <Plus size={16} />
+                  Create Your First Focus Map
+                </motion.button>
+              </motion.div>
+            )}
           </div>
 
           {/* Research-Based Insights */}
